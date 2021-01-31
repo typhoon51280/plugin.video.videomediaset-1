@@ -31,13 +31,13 @@ class KodiMediaset(object):
                 if prog['media']:
                     media = prog['media'][0]
                     args = {'mode': 'video'}
-                    properties = {}
+                    properties = {'ResumeTime': '', 'TotalTime': ''}
                     if 'pid' in media:
                         args['pid'] = media['pid']
                     elif 'publicUrl' in media:
                         args['pid'] = media['publicUrl'].split('/')[-1]
                     if 'position' in prog and 'mediasetprogram$duration' in prog and len(str(prog['position']))>0:
-                        properties['ResumeTime'] = '600' # str(prog['position'])
+                        properties['ResumeTime'] = str(prog['position'])
                         properties['TotalTime'] = str(prog['mediasetprogram$duration'])
                     kodiutils.addListItem(infos["title"], args,
                                           videoInfo=infos, arts=arts, isFolder=False, properties=properties)
@@ -408,7 +408,7 @@ class KodiMediaset(object):
             return
         self.riproduci_video(res['media'][0]['pid'])
 
-    def riproduci_video(self, pid, live=False, properties=None):
+    def riproduci_video(self, pid, live=False,properties=None):
         from inputstreamhelper import Helper  # pylint: disable=import-error
         kodiutils.log("Trying to get the video from pid" + pid)
         data = self.med.OttieniDatiVideo(pid, live)
