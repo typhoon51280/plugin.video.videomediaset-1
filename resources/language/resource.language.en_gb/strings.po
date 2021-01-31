@@ -70,6 +70,10 @@ msgctxt "#32107"
 msgid "Cerca"
 msgstr "Search"
 
+msgctxt "#32108"
+msgid "Family"
+msgstr "Family"
+
 msgctxt "#32111"
 msgid "Dirette"
 msgstr "Live TV"
@@ -137,3 +141,7 @@ msgstr "Live"
 msgctxt "#32138"
 msgid "Ricomincia"
 msgstr "Restart"
+
+msgctxt "#32139"
+msgid "Inverti Ordine"
+msgstr "Reverse Order"

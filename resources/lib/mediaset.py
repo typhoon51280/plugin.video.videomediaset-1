@@ -201,37 +201,60 @@ class Mediaset(rutils.RUtils):
         return True
 
     def __getEntriesFromUrl(self, url, args=None):
+        hasMore = False
         data = self.getJson(self.__create_url(url, args))
-        if data and 'entries' in data:
-            return data['entries']
-        return data
+        if data:
+            if 'itemsPerPage' in data and 'entryCount' in data:
+                hasMore = data['itemsPerPage'] == data['entryCount']
+            elif 'pagination' in data:
+                pagination = data['pagination']
+                hasMore = pagination['total'] <= (pagination['offset']+1) * pagination['size']
+            if 'entries' in data:
+                return data['entries'], hasMore
+        return data, hasMore
 
     def __getElsFromUrl(self, url):
-        res = None
+        result = None
         hasMore = False
         data = self.getJson(url)
         if data and 'isOk' in data and data['isOk']:
             if 'response' in data:
-                if 'hasMore' in data['response']:
-                    hasMore = data['response']['hasMore']
-                if 'entries' in data['response']:
-                    res = data['response']['entries']
+                response = data['response']
+                if 'hasMore' in response:
+                    hasMore = response['hasMore']
+                elif 'metadata' in response and 'pagination' in response['metadata']:
+                    pagination = response['metadata']['pagination']
+                    hasMore = pagination['totalHits'] == pagination['hitsPerPage']
+                if 'entries' in response:
+                    result = response['entries']
                 else:
-                    res = data['response']
+                    result = response
             elif 'entries' in data:
-                res = data['entries']
-        return res, hasMore
+                result = data['entries']
+        return result, hasMore
 
     def __getsectionsFromEntryID(self, eid):
         self.__getAPISession()
         jsn = self.getJson(
             "https://api.one.accedo.tv/content/entry/{eid}?locale=it".format(eid=eid))
         if jsn and "components" in jsn:
-            eid = quote(",".join(jsn["components"]))
-            jsn = self.getJson(
-                "https://api.one.accedo.tv/content/entries?id={eid}&locale=it".format(eid=eid))
-            if jsn and 'entries' in jsn:
-                return jsn['entries']
+            entries = []
+            result = []
+            components = jsn["components"]
+            total = len(components)
+            idx = 0
+            self.log('components: ' + str(total), 4)
+            for idx in range(total):
+                entries.append(components[idx])
+                if (idx+1) % 20 == 0 or idx+1==total:
+                    eid = quote(",".join(entries))
+                    self.log('eid: ' + str(eid), 4)
+                    del entries[:]
+                    jsn = self.getJson("https://api.one.accedo.tv/content/entries?id={eid}&locale=it".format(eid=eid))
+                    if jsn and 'entries' in jsn:
+                        result.extend(jsn['entries'])
+            # self.log('result: ' + str(len(result)), 4)
+            return result
         return False
 
     def __createMediasetUrl(self, base, pageels=None, page=None, args=None, passkeys=True):
@@ -291,6 +314,101 @@ class Mediaset(rutils.RUtils):
         url = self.__createAZUrl(["Fiction"], inonda=inonda, pageels=pageels, page=page)
         return self.__getElsFromUrl(url)
 
+    def OttieniOnDemand(self):
+        self.log('Trying to get the sections list for ondemand', 4)
+        url = "https://api.one.accedo.tv/content/entries"
+        args = {'locale': 'it', 'offset': '0', 'size': '50', 'typeAlias': 'page-browse'}
+        self.__getAPISession()
+        data, _ = self.__getEntriesFromUrl(url, args)
+        if data:
+            self.log('data: {}'.format(data), 4)
+            page_priority = {'programmitv': '0001', 'family': '0002',  'fiction': '0003', 'film': '0004',  'kids': '0005', 'documentari': '0006'}
+            filtered = []
+            for el in data:
+                if 'page_section' in el and str(el['name'].lower()).startswith('[pro]'):
+                    key_pr = str(el['page_section'])
+                    if key_pr in page_priority:
+                        el['priority'] = page_priority[key_pr]
+                    filtered.append(el)
+            return sorted(filtered, key=lambda k: k['priority'] if 'priority' in k else k['title'])
+        return None
+
+    def OttieniOnDemandGeneri(self, id, sort=None, order='asc'):
+        self.log('Trying to get the sections list for ondemand section: ' + id, 4)
+        data = self.__getsectionsFromEntryID(id)
+        if data and sort:
+            return sorted(data, key=lambda k: k[sort] if sort in k else None, reverse=(not order == 'asc'))
+        return data
+
+    def OttieniMagazine(self, newsFeedUrl):
+        self.log('Trying to get the list of articles for magazine section: ' + newsFeedUrl, 4)
+        jsn = self.getJson(newsFeedUrl)
+        nextPage = False
+        els = []
+        if 'data' in jsn:
+            data = jsn['data']
+            if 'items' in data:
+                els = data['items']
+        if 'resultInfo' in jsn and 'paging' in jsn['resultInfo'] and 'next' in jsn['resultInfo']['paging']:
+            nextPage = jsn['resultInfo']['paging']['next']
+        return els, nextPage
+
+    def OttieniNews(self, ddg_url):
+        self.log('Trying to get info from ddg_url ' + ddg_url, 4)
+        jsn = self.getJson(ddg_url)
+        els = []
+        if jsn and 'data' in jsn and 'paragraphs' in jsn['data']:
+            for p in jsn['data']['paragraphs']:
+                self.log('paragraph: ' + str(p), 4)
+                if 'guid' in p:
+                    el = self.OttieniInfoDaGuid(p['guid'])
+                    if el:
+                        els.append(el)
+        return els
+
+    def OttieniCult(self, feedurl):
+        self.log('Trying to get the list of articles for cult section: ' + feedurl, 4)
+        jsn = self.getJson(feedurl)
+        nextPage = False
+        els = []
+        if 'entries' in jsn:
+            els = jsn['entries']
+            if els and 'itemsPerPage' in jsn and 'entryCount' in jsn and jsn['itemsPerPage'] == jsn['entryCount']:
+                url = 'https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-programs'
+                startIndex = int(jsn['startIndex']) + int(jsn['itemsPerPage'])
+                endIndex = int(jsn['startIndex']) + int(jsn['itemsPerPage']) + int(jsn['itemsPerPage']) - 1
+                brandId = els[0]['mediasetprogram$brandId']
+                subBrandId = els[0]['mediasetprogram$subBrandId']
+                args = {'byCustomValue': '{{brandId}}{{{brandId}}},{{subBrandId}}{{{subBrandId}}}'.format(brandId=brandId,subBrandId=subBrandId), 'range': '{}-{}'.format(startIndex, endIndex)}
+                nextPage = self.__create_url(url, args)
+        return els, nextPage
+
+    # def OttieniGeneri(self, section):
+    #     self.log('Trying to get the sections list for ' + section, 4)
+    #     url = "https://api.one.accedo.tv/content/entries"
+    #     args = {'locale': 'it', 'offset': '0', 'size': '50', 'typeAlias': 'page-browse'}
+    #     self.__getAPISession()
+    #     data, _ = self.__getEntriesFromUrl(url, args)
+    #     if data:
+    #         self.log('data: {}'.format(data), 4)
+    #         entries = list(filter(lambda el: 'page_section' in el and str(el['page_section'].lower()) == section.lower() and str(el['name'].lower()).startswith('[pro]'), data))
+    #         if entries:
+    #             entry = entries[0]
+    #             return self.__getsectionsFromEntryID(entry['_meta']['id'])
+    #     return None
+
+    def OttieniContinuaGardare(self):
+        url = self.__createMediasetUrl("https://api-ott-prod-fe.mediaset.net/PROD/play/userlist/continuewatch/v1.0")
+        return self.__getElsFromUrl(url)
+
+    def OttieniFavoriti(self):
+        url = self.__createMediasetUrl("https://api-ott-prod-fe.mediaset.net/PROD/play/userlist/favorites/v1.0")
+        return self.__getElsFromUrl(url)
+
+    def OttieniWatchlist(self):
+        url = self.__createMediasetUrl("https://api-ott-prod-fe.mediaset.net/PROD/play/userlist/watchlist/v1.0")
+        return self.__getElsFromUrl(url)
+
     def OttieniGeneriFiction(self):
         self.log('Trying to get the fiction sections list', 4)
         return self.__getsectionsFromEntryID("5acfcb3c23eec6000d64a6a4")
@@ -322,19 +440,22 @@ class Mediaset(rutils.RUtils):
         self.log('Trying to get the movie sections list', 4)
         return self.__getsectionsFromEntryID("5bfd17c423eec6001aec49f9")
 
-    def OttieniProgrammiGenere(self, gid, pageels=100, page=None):
+    def OttieniProgrammiGenere(self, gid, pageels=100, page=None, sort=None, order='asc'):
         self.log('Trying to get the programs from section id ' + gid, 4)
         url = self.__createMediasetUrl(
             "https://api-ott-prod-fe.mediaset.net/PROD/play/rec2/cataloguelisting/v1.0",
             pageels=pageels, page=page, args={'platform': 'pc', 'uxReference': self.uxReferenceMapping[gid]})
-        return self.__getElsFromUrl(url)
+        data, hasMore = self.__getElsFromUrl(url)
+        if sort and not hasMore:
+            return sorted(data, key=lambda k: k[sort] if sort in k else None, reverse=(not order == 'asc')), hasMore
+        return data, hasMore
 
-    def OttieniStagioni(self, seriesId, sort=None):
+    def OttieniStagioni(self, seriesId, sort=None, order='asc'):
         self.log('Trying to get the seasons from series id {}'.format(seriesId), 4)
         url = 'https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-tv-seasons/feed'
         args = {'bySeriesId': seriesId}
         if sort:
-            args['sort'] = sort
+            args['sort'] = sort + '|' + order
         return self.__getEntriesFromUrl(url, args)
 
     def OttieniSezioniProgramma(self, brandId, sort=None):
@@ -345,10 +466,13 @@ class Mediaset(rutils.RUtils):
             args['sort'] = sort
         return self.__getEntriesFromUrl(url, args)
 
-    def OttieniVideoSezione(self, subBrandId, sort=None):
+    def OttieniVideoSezione(self, subBrandId, sort=None, page=0, size=50):
         self.log('Trying to get the videos from section {}'.format(subBrandId), 4)
         url = 'https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-programs'
-        args = {'byCustomValue': '{{subBrandId}}{{{subBrandId}}}'.format(subBrandId=subBrandId)}
+        offset = int(page) * int(size)
+        startIndex = offset + 1
+        endIndex = offset + int(size)
+        args = {'byCustomValue': '{{subBrandId}}{{{subBrandId}}}'.format(subBrandId=subBrandId), 'range': '{}-{}'.format(startIndex, endIndex)}
         if sort:
             args['sort'] = sort
         return self.__getEntriesFromUrl(url, args)

@@ -70,6 +70,10 @@ msgctxt "#32107"
 msgid "Cerca"
 msgstr "Cerca"
 
+msgctxt "#32108"
+msgid "Family"
+msgstr "Family"
+
 msgctxt "#32111"
 msgid "Dirette"
 msgstr "Dirette"
@@ -137,3 +141,7 @@ msgstr "Diretta"
 msgctxt "#32138"
 msgid "Ricomincia"
 msgstr "Ricomincia"
+
+msgctxt "#32139"
+msgid "Inverti Ordine"
+msgstr "Inverti Ordine"
