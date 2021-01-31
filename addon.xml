@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.videomediaset" name="Mediaset Play" provider-name="phate89, aracnoz" version="2.0.1~beta4">
+<addon id="plugin.video.videomediaset" name="Mediaset Play" provider-name="phate89, aracnoz" version="2.0.1~beta6">
     <requires>
         <import addon="xbmc.python" version="2.25.0" />
-        <import addon="script.module.phate89" version="1.2.1~beta2"/>
+        <import addon="script.module.phate89" version="1.2.1~beta3"/>
         <import addon="script.module.inputstreamhelper" version="0.0.1"/>
     </requires>
     <extension library="default.py" point="xbmc.python.pluginsource">
@@ -18,7 +18,7 @@
         <description lang="en_GB">All your favorite shows are available to you the day after the airing Tv. Last night you missed your favorite TV drama? No problem, you can finally see her comfortably on KODI whenever you want.</description>
         <license>GPL-2.0-only</license>
         <forum>https://forum.kodi.tv/showthread.php?tid=292876</forum>
-        <source>https://github.com/phate89/plugin.video.videomediaset</source>
+        <source>https://github.com/typhoon51280/plugin.video.videomediaset</source>
         <reuselanguageinvoker>true</reuselanguageinvoker>
         <news>2.0.1
 - added support for live restart (manually jump to start after you start play right now)
